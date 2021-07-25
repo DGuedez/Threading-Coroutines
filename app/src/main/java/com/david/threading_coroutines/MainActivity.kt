@@ -4,25 +4,41 @@ import android.graphics.BitmapFactory
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.os.Handler
+import android.util.Log
 import android.widget.ImageView
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.launch
 import java.net.HttpURLConnection
 import java.net.URL
 
 /*
-* Creating a thread using the initial way
+* Fetching data from url while using coroutines
+* The coroutine framework enhance the tread management. Using it more efficiently via function cooperation
+* All the async/background operations could be treated as sync
+* To start coroutines we need to use a coroutine scope to attach it to a life cycle to avoid leaks & a builder to start it
+* Also we need to use Dispatchers objects to indicate in which thread we want to process the task
 * */
+
 
 class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
-        val image =  findViewById<ImageView>(R.id.image_view)
+        val image = findViewById<ImageView>(R.id.image_view)
+        Log.d("ThreadTask", Thread.currentThread().name)
 
-        //Runnable object is necessary to execute the thread operation
+        /*
+        * the global scope live across all the app life cycle
+        * launch is the default builder extension function to use coroutines. Also it uses a
+          default thread pool limited by the number of processor cores of the device. (2,4,6)
+        * if we use a dispatcher I.O the thread limit is increased to 64 or number of processor cores if higher
+        * io dispatcher and default dispatcher shares threads
+        * context inside launch constructor indicates a set of rules about how the coroutines will be constructed. Dispatchers are one part of it
+        * */
 
-        //looper is used later on comments
-        val looper = mainLooper //or Looper.getMainLooper
-        Thread(Runnable {
+        GlobalScope.launch(context = Dispatchers.IO) {
+            Log.d("ThreadTask", Thread.currentThread().name)
             val url = URL("http://s1.picswalls.com/wallpapers/2014/08/08/home-hd-wallpaper_015622481_147.jpg")
             val connection = url.openConnection() as HttpURLConnection
             connection.doInput = true
@@ -34,21 +50,12 @@ class MainActivity : AppCompatActivity() {
             //decode image
             val bitmap = BitmapFactory.decodeStream(inputStream)
 
-            /*ways to communicate result to UI /Main Thread
-            * 1. From Activity we can use RunOnUiThread methods
-            * 2. Usign loopers to loop through thread signals /messages and act upon it
-            *  2.1 Loopers must be associated to a thread. E.g main Looper
-            *  2.2 To communicate looper with the thread we need a handler object and post the result
-            * */
+            launch(Dispatchers.Main) {
+                Log.d("ThreadTask", Thread.currentThread().name)
+                image.setImageBitmap(bitmap)
+            }
 
-            //1.
-            //runOnUiThread { image.setImageBitmap(bitmap) }
-
-            //2.
-            Handler(looper).post { image.setImageBitmap(bitmap) }
-
-            //threads are idle by default so they need to be started
-        }).start()
+        }
 
     }
 }
